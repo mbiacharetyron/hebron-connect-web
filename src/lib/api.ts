@@ -209,6 +209,53 @@ export const authApi = {
   },
 };
 
+// Subscription Plans API
+export const subscriptionPlansApi = {
+  // Get all subscription plans
+  getAll: async () => {
+    const response = await request<any>('/subscription-plans', {
+      method: 'GET',
+      requiresAuth: false, // Public endpoint
+    });
+    return {
+      plans: response.plans || response.data?.plans || []
+    };
+  },
+
+  // Get specific plan by ID
+  getPlanById: async (planId: number) => {
+    const response = await request<any>(`/subscription-plans/${planId}`, {
+      method: 'GET',
+      requiresAuth: false,
+    });
+    return {
+      plan: response.plan || response.data?.plan || null
+    };
+  },
+
+  // Get plan by slug
+  getPlanBySlug: async (slug: string) => {
+    const response = await request<any>(`/subscription-plans/slug/${slug}`, {
+      method: 'GET',
+      requiresAuth: false,
+    });
+    return {
+      plan: response.plan || response.data?.plan || null
+    };
+  },
+
+  // Get popular plans
+  getPopularPlans: async () => {
+    const response = await request<any>('/subscription-plans/popular', {
+      method: 'GET',
+      requiresAuth: false,
+    });
+    return {
+      plans: response.plans || response.data?.plans || []
+    };
+  },
+};
+
 // Connect Rooms API
 export const connectRoomsApi = {
   // Get user's connect rooms

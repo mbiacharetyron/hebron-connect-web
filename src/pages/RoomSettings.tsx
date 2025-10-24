@@ -26,6 +26,7 @@ interface Room {
   member_count: number;
   user_role: "owner" | "admin" | "member";
   subscription_plan?: {
+    id: number;
     name: string;
     type: string;
     status: string;
@@ -270,7 +271,7 @@ const RoomSettings = () => {
             </div>
 
             <Button 
-              onClick={() => toast({ title: "Coming Soon", description: "Subscription management is under development" })}
+              onClick={() => navigate(`/room/${roomId}/subscription-plans`)}
               className="w-full bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-semibold h-12 shadow-lg"
             >
               Manage Subscription

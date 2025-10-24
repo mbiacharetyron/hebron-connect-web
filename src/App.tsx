@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import ConnectRooms from "./pages/ConnectRooms";
 import RoomDashboard from "./pages/RoomDashboard";
 import RoomSettings from "./pages/RoomSettings";
+import RoomSubscriptionPlans from "./pages/RoomSubscriptionPlans";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,14 @@ const App = () => (
                     element={
                       <ProtectedRoute>
                         <RoomSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/room/:roomId/subscription-plans"
+                    element={
+                      <ProtectedRoute>
+                        <RoomSubscriptionPlans />
                       </ProtectedRoute>
                     }
                   />
