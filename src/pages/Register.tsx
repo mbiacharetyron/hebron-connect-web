@@ -1,28 +1,128 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Eye, EyeOff, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff, X, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import logo from "@/assets/images/hConnect-logo3.png";
+import { authApi, ApiError } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [formData, setFormData] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phoneNumber: "",
     password: "",
     confirmPassword: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle registration logic here
-    console.log("Register:", formData);
+    
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Password Mismatch",
+        description: "Passwords do not match",
+      });
+      return;
+    }
+
+    // Validate password length
+    if (formData.password.length < 8) {
+      toast({
+        variant: "destructive",
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Check availability
+      await authApi.checkAvailability({
+        phone: formData.phoneNumber,
+        email: formData.email,
+      });
+      
+      // Show verification method modal
+      setShowVerificationModal(true);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const errorMessage = error.errors
+          ? Object.values(error.errors).flat().join(", ")
+          : error.message;
+        toast({
+          variant: "destructive",
+          title: "Registration Error",
+          description: errorMessage,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "An unexpected error occurred",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerificationMethod = async (type: "phone" | "email") => {
+    const identifier = type === "phone" ? formData.phoneNumber : formData.email;
+    
+    try {
+      await authApi.sendOtp({ identifier, type });
+      
+      toast({
+        title: "Success",
+        description: `Verification code has been sent to your ${type}`,
+        className: "bg-green-500 text-white",
+      });
+
+      // Store registration data in sessionStorage
+      sessionStorage.setItem("registration_data", JSON.stringify(formData));
+      
+      // Navigate to OTP verification
+      navigate("/verify-otp", {
+        state: {
+          identifier,
+          type,
+          context: "register",
+        },
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast({
+          variant: "destructive",
+          title: "Failed to Send OTP",
+          description: error.message,
+        });
+      }
+    } finally {
+      setShowVerificationModal(false);
+    }
   };
 
   return (
@@ -49,18 +149,36 @@ const Register = () => {
 
           {/* Registration Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name */}
+            {/* First Name */}
             <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">
-                Full Name
+              <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
+                First Name
               </Label>
               <Input
-                id="fullName"
+                id="firstName"
                 type="text"
-                placeholder="Enter your full name"
-                value={formData.fullName}
+                placeholder="Enter your first name"
+                value={formData.firstName}
                 onChange={(e) =>
-                  setFormData({ ...formData, fullName: e.target.value })
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
+                className="h-12 px-4 rounded-xl border-gray-200 focus:border-[#1e40af] focus:ring-[#1e40af] text-base"
+                required
+              />
+            </div>
+
+            {/* Last Name */}
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
+                Last Name
+              </Label>
+              <Input
+                id="lastName"
+                type="text"
+                placeholder="Enter your last name"
+                value={formData.lastName}
+                onChange={(e) =>
+                  setFormData({ ...formData, lastName: e.target.value })
                 }
                 className="h-12 px-4 rounded-xl border-gray-200 focus:border-[#1e40af] focus:ring-[#1e40af] text-base"
                 required
@@ -99,6 +217,7 @@ const Register = () => {
                   setFormData({ ...formData, phoneNumber: e.target.value })
                 }
                 className="h-12 px-4 rounded-xl border-gray-200 focus:border-[#1e40af] focus:ring-[#1e40af] text-base"
+                placeholder="+237..."
                 required
               />
             </div>
@@ -192,10 +311,10 @@ const Register = () => {
             {/* Register Button */}
             <Button
               type="submit"
-              disabled={!agreedToTerms}
+              disabled={!agreedToTerms || isSubmitting}
               className="w-full h-14 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-full text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Register Now
+              {isSubmitting ? "Checking availability..." : "Create account"}
             </Button>
 
             {/* Login Link */}
@@ -216,6 +335,40 @@ const Register = () => {
           By registering, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
+
+      {/* Verification Method Modal */}
+      <Dialog open={showVerificationModal} onOpenChange={setShowVerificationModal}>
+        <DialogContent className="sm:max-w-md bg-white rounded-3xl p-8">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900 text-center mb-6">
+              Choose Verification Method
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Verify by Phone */}
+            <button
+              onClick={() => handleVerificationMethod("phone")}
+              className="w-full flex items-center gap-4 p-6 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors"
+            >
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow">
+                <Phone className="w-6 h-6 text-[#1e40af]" />
+              </div>
+              <span className="text-lg font-medium text-gray-900">Verify by Phone</span>
+            </button>
+
+            {/* Verify by Email */}
+            <button
+              onClick={() => handleVerificationMethod("email")}
+              className="w-full flex items-center gap-4 p-6 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-colors"
+            >
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow">
+                <Mail className="w-6 h-6 text-[#1e40af]" />
+              </div>
+              <span className="text-lg font-medium text-gray-900">Verify by Email</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

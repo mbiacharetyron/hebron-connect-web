@@ -1,24 +1,79 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import logo from "@/assets/images/hConnect-logo3.png";
+import { authApi, ApiError } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const { toast } = useToast();
+  
   const [credentials, setCredentials] = useState({
     emailOrPhone: "",
     password: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log("Login:", credentials, "Remember:", rememberMe);
+
+    if (!credentials.emailOrPhone || !credentials.password) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please fill in all fields",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await authApi.login({
+        login: credentials.emailOrPhone,
+        password: credentials.password,
+        device_type: "web",
+        device_name: navigator.userAgent,
+        lang: "en",
+      });
+
+      // Login user
+      login(response.token, response.user);
+
+      toast({
+        title: "Success",
+        description: "Login successful! Welcome back",
+        className: "bg-green-500 text-white",
+      });
+
+      // Navigate to dashboard
+      navigate("/dashboard");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: error.message,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "An unexpected error occurred",
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -121,9 +176,10 @@ const Login = () => {
             {/* Login Button */}
             <Button
               type="submit"
-              className="w-full h-14 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-full text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              disabled={isSubmitting}
+              className="w-full h-14 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-full text-base font-medium shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Login
+              {isSubmitting ? "Logging in..." : "Login"}
             </Button>
 
             {/* Register Link */}
