@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, SlidersHorizontal, Home, Users, FolderTree } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -38,11 +38,7 @@ const ConnectRooms = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchRooms();
-  }, [sortBy]);
-
-  const fetchRooms = async () => {
+  const fetchRooms = useCallback(async () => {
     try {
       const response = await connectRoomsApi.getMyRooms({
         search: searchTerm || undefined,
@@ -69,7 +65,11 @@ const ConnectRooms = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, sortBy, toast]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
 
   const handleSearch = () => {
     fetchRooms();
@@ -153,18 +153,18 @@ const ConnectRooms = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="pl-10 h-12 rounded-xl border-gray-200"
+                className="pl-10 h-12 rounded-xl border-gray-200 bg-white text-gray-900 placeholder:text-gray-400"
               />
             </div>
 
             {/* Sort */}
             <div className="flex gap-2">
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full sm:w-40 h-12 rounded-xl border-gray-200">
+                <SelectTrigger className="w-full sm:w-40 h-12 rounded-xl border-gray-200 bg-white text-gray-900">
                   <SlidersHorizontal className="w-4 h-4 mr-2" />
                   <SelectValue placeholder="Sort" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white">
                   <SelectItem value="last_activity_at">Recent Activity</SelectItem>
                   <SelectItem value="name">Name</SelectItem>
                   <SelectItem value="member_count">Members</SelectItem>
@@ -174,7 +174,7 @@ const ConnectRooms = () => {
               
               <Button
                 onClick={handleSearch}
-                className="h-12 px-6 bg-[#1e40af] hover:bg-[#1e3a8a] rounded-xl"
+                className="h-12 px-6 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-xl"
               >
                 Search
               </Button>
@@ -255,7 +255,7 @@ const ConnectRooms = () => {
                   </div>
 
                   {/* Enter Button */}
-                  <Button className="w-full mt-4 bg-[#1e40af] hover:bg-[#1e3a8a] rounded-xl h-11 group-hover:shadow-lg transition-all">
+                  <Button className="w-full mt-4 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-xl h-11 group-hover:shadow-lg transition-all">
                     Enter
                   </Button>
                 </div>

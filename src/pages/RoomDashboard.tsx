@@ -141,7 +141,7 @@ const RoomDashboard = () => {
         <input
           type="text"
           placeholder="Search connect rooms..."
-          className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1e40af] focus:border-transparent"
+          className="w-full px-4 py-2 border border-gray-200 rounded-xl bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1e40af] focus:border-transparent"
         />
       </div>
 
@@ -307,7 +307,7 @@ const RoomDashboard = () => {
                   </p>
                 </div>
               </div>
-              <Button className="bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-medium flex-shrink-0 ml-4">
+              <Button className="bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-medium flex-shrink-0 ml-4 shadow-sm">
                 View Docs <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -335,7 +335,7 @@ const RoomDashboard = () => {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className={`w-4 h-4 ${filterType === "event" ? "text-white" : "text-gray-700"}`} />
               Events
             </button>
             <button
@@ -346,7 +346,7 @@ const RoomDashboard = () => {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <Bell className="w-4 h-4" />
+              <Bell className={`w-4 h-4 ${filterType === "announcement" ? "text-white" : "text-gray-700"}`} />
               Announcements
             </button>
             <button
@@ -357,7 +357,7 @@ const RoomDashboard = () => {
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <DollarSign className="w-4 h-4" />
+              <DollarSign className={`w-4 h-4 ${filterType === "contribution" ? "text-white" : "text-gray-700"}`} />
               Contributions
             </button>
           </div>
