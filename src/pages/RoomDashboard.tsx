@@ -319,7 +319,7 @@ const RoomDashboard = () => {
         <header className="bg-gradient-to-r from-[#1e40af] to-[#1e3a8a] text-white shadow-lg sticky top-0 z-40 bg-opacity-100">
           <div className="px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
                   <SheetTrigger asChild>
                     <Button
@@ -332,7 +332,7 @@ const RoomDashboard = () => {
                   </SheetTrigger>
                 </Sheet>
                 
-                <div className="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden">
+                <div className="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {room?.room_image_thumbnail ? (
                     <img
                       src={room.room_image_thumbnail}
@@ -344,7 +344,7 @@ const RoomDashboard = () => {
                   )}
                 </div>
                 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h1 className="text-lg sm:text-xl font-bold line-clamp-1">
                     {room?.name || "Loading..."}
                   </h1>
@@ -359,18 +359,13 @@ const RoomDashboard = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:bg-white/20"
+                  className="text-white hover:bg-white/20 flex-shrink-0"
                   onClick={() => navigate(`/room/${roomId}/settings`)}
                   title="Room Settings"
                 >
                   <Settings className="w-5 h-5" />
                 </Button>
               )}
-              
-              {/* Temporary Debug Indicator */}
-              <div className="text-xs text-white/90 ml-2 bg-black/30 px-2 py-1 rounded">
-                Admin: {isAdminOrOwner ? "✓" : "✗"}
-              </div>
             </div>
           </div>
         </header>
