@@ -10,6 +10,8 @@ import {
   ChevronRight,
   RefreshCw,
   Settings,
+  Crown,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { connectRoomsApi, ApiError } from "@/lib/api";
@@ -23,6 +25,12 @@ interface Room {
   room_image_thumbnail: string | null;
   member_count: number;
   user_role: "owner" | "admin" | "member";
+  subscription_plan?: {
+    name: string;
+    type: string;
+    status: string;
+    expires_at?: string;
+  };
   category: {
     name: string;
   };
@@ -196,6 +204,76 @@ const RoomSettings = () => {
               className="flex-shrink-0 bg-blue-50 hover:bg-blue-100 text-[#1e40af] rounded-xl"
             >
               <Edit className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Subscription Plan Section */}
+        <div className="mb-6">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
+            Subscription Plan
+          </h3>
+          
+          <div className="bg-gradient-to-br from-[#1e40af] to-[#1e3a8a] rounded-2xl shadow-lg p-6 sm:p-8 text-white">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Crown className="w-7 h-7 text-yellow-300" />
+                </div>
+                <div>
+                  <h4 className="text-2xl font-bold mb-1">
+                    {room.subscription_plan?.name || "Free Plan"}
+                  </h4>
+                  <p className="text-blue-100 text-sm">
+                    {room.subscription_plan?.status === "active" ? "Active" : "Current Plan"}
+                  </p>
+                </div>
+              </div>
+              {room.subscription_plan?.status === "active" && (
+                <div className="bg-green-500 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Active
+                </div>
+              )}
+            </div>
+
+            {room.subscription_plan?.expires_at && (
+              <div className="bg-white/10 rounded-xl p-4 mb-4">
+                <p className="text-sm text-blue-100 mb-1">Valid Until</p>
+                <p className="font-semibold">
+                  {new Date(room.subscription_plan.expires_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-blue-50">Access to all room features</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-blue-50">Unlimited members</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-blue-50">Event & contribution management</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-300 flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-blue-50">Document storage</span>
+              </div>
+            </div>
+
+            <Button 
+              onClick={() => toast({ title: "Coming Soon", description: "Subscription management is under development" })}
+              className="w-full bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-semibold h-12 shadow-lg"
+            >
+              Manage Subscription
             </Button>
           </div>
         </div>
