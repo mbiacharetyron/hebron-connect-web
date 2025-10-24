@@ -52,7 +52,6 @@ const RoomDashboard = () => {
 
   useEffect(() => {
     if (roomId) {
-      fetchRoomData();
       fetchAllRooms();
     }
   }, [roomId]);
@@ -62,21 +61,6 @@ const RoomDashboard = () => {
       fetchFeed();
     }
   }, [roomId, filterType]);
-
-  const fetchRoomData = async () => {
-    try {
-      const response = await connectRoomsApi.getRoomDetails(Number(roomId));
-      setRoom(response);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message,
-        });
-      }
-    }
-  };
 
   const fetchFeed = async () => {
     try {
@@ -107,6 +91,12 @@ const RoomDashboard = () => {
     try {
       const response = await connectRoomsApi.getMyRooms({ per_page: 50 });
       setRooms(response.rooms || []);
+      
+      // Find and set the current room from the list
+      const currentRoom = response.rooms?.find(r => r.id === Number(roomId));
+      if (currentRoom) {
+        setRoom(currentRoom);
+      }
     } catch (error) {
       console.error("Error fetching rooms:", error);
       setRooms([]); // Set empty array on error

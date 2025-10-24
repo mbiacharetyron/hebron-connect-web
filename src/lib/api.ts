@@ -277,13 +277,6 @@ export const connectRoomsApi = {
       feed: response.feed || response.data || []
     };
   },
-
-  // Get room details
-  getRoomDetails: async (roomId: number) => {
-    return request(`/connect-room/${roomId}`, {
-      method: 'GET',
-    });
-  },
 };
 
 export { ApiError };
