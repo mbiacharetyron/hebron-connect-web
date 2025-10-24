@@ -12,6 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import logo from "@/assets/images/hConnect-logo3.png";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { connectRoomsApi, ApiError } from "@/lib/api";
@@ -111,19 +112,22 @@ const RoomDashboard = () => {
   const SidebarContent = () => (
     <div className="h-full flex flex-col bg-white">
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Hebron Connect</h2>
+      <div className="p-6 bg-gradient-to-r from-[#1e40af] to-[#1e3a8a]">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="Hebron Connect" className="w-10 h-10 object-contain" />
+            <h2 className="text-xl font-bold text-white">Hebron Connect</h2>
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden text-white hover:bg-white/20"
             onClick={() => setSidebarOpen(false)}
           >
             <X className="w-5 h-5" />
           </Button>
         </div>
-        <p className="text-sm text-gray-600">Connect & Collaborate</p>
+        <p className="text-sm text-blue-100">Connect & Collaborate</p>
       </div>
 
       {/* Search Rooms */}
