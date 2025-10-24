@@ -209,6 +209,83 @@ export const authApi = {
   },
 };
 
+// Connect Rooms API
+export const connectRoomsApi = {
+  // Get user's connect rooms
+  getMyRooms: async (params?: {
+    search?: string;
+    category_id?: number;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+    per_page?: number;
+    page?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const queryString = queryParams.toString();
+    const response = await request<any>(`/connect-rooms/my-rooms${queryString ? `?${queryString}` : ''}`, {
+      method: 'GET',
+    });
+    
+    // Handle both response structures:
+    // 1. { rooms: [], pagination: {} } - from documentation
+    // 2. { data: [], current_page, etc } - actual API response
+    if (response.data && Array.isArray(response.data)) {
+      return {
+        rooms: response.data,
+        pagination: {
+          total: response.total || 0,
+          per_page: response.per_page || 10,
+          current_page: response.current_page || 1,
+          last_page: response.last_page || 1,
+          from: response.from || 0,
+          to: response.to || 0,
+        }
+      };
+    }
+    
+    // Fallback to documented structure
+    return {
+      rooms: response.rooms || [],
+      pagination: response.pagination || {
+        total: 0,
+        per_page: 10,
+        current_page: 1,
+        last_page: 1,
+        from: 0,
+        to: 0,
+      }
+    };
+  },
+
+  // Get room feed
+  getRoomFeed: async (roomId: number, type?: 'event' | 'announcement' | 'contribution') => {
+    const queryParams = type ? `?type=${type}` : '';
+    const response = await request<any>(`/connect-room/${roomId}/feed${queryParams}`, {
+      method: 'GET',
+    });
+    
+    // Return feed array, handling both possible response structures
+    return {
+      feed: response.feed || response.data || []
+    };
+  },
+
+  // Get room details
+  getRoomDetails: async (roomId: number) => {
+    return request(`/connect-room/${roomId}`, {
+      method: 'GET',
+    });
+  },
+};
+
 export { ApiError };
 export type { ApiResponse };
 
