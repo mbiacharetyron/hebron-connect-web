@@ -16,6 +16,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import ConnectRooms from "./pages/ConnectRooms";
 import RoomDashboard from "./pages/RoomDashboard";
+import RoomSettings from "./pages/RoomSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,17 +56,25 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/room/:roomId"
-              element={
-                <ProtectedRoute>
-                  <RoomDashboard />
-                </ProtectedRoute>
-              }
-            />
+                  <Route
+                    path="/room/:roomId"
+                    element={
+                      <ProtectedRoute>
+                        <RoomDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/room/:roomId/settings"
+                    element={
+                      <ProtectedRoute>
+                        <RoomSettings />
+                      </ProtectedRoute>
+                    }
+                  />
 
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
