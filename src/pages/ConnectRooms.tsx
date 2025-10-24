@@ -21,7 +21,7 @@ interface ConnectRoom {
   description: string;
   room_image_thumbnail: string | null;
   member_count: number;
-  user_role: string;
+  user_role: "owner" | "admin" | "member";
   category: {
     id: number;
     name: string;

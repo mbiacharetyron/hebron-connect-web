@@ -9,10 +9,12 @@ import {
   Wallet,
   ChevronRight,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { connectRoomsApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Room {
   id: number;
@@ -20,23 +22,28 @@ interface Room {
   description: string;
   room_image_thumbnail: string | null;
   member_count: number;
+  user_role: "owner" | "admin" | "member";
   category: {
     name: string;
   };
+}
+
+interface Member {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  joined_at: string;
 }
 
 const RoomSettings = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (roomId) {
-      fetchRoomDetails();
-    }
-  }, [roomId]);
+  const { user } = useAuth();
 
   const fetchRoomDetails = async () => {
     try {
@@ -58,6 +65,38 @@ const RoomSettings = () => {
     }
   };
 
+  const checkUserRole = async () => {
+    if (!roomId || !user) return;
+    
+    try {
+      const response = await connectRoomsApi.getRoomMembers(Number(roomId));
+      const members = response.members as Member[] || [];
+      
+      // Find current user in members list by ID or email
+      const currentUserMember = members.find((member: Member) => 
+        member.id === user.id || member.email === user.email
+      );
+      
+      if (currentUserMember) {
+        const role = currentUserMember.role?.toLowerCase();
+        setIsAdminOrOwner(role === 'admin' || role === 'owner');
+      } else {
+        setIsAdminOrOwner(false);
+      }
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      setIsAdminOrOwner(false);
+    }
+  };
+
+  useEffect(() => {
+    if (roomId) {
+      fetchRoomDetails();
+      checkUserRole();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
   const handleRefresh = () => {
     setLoading(true);
     fetchRoomDetails();
@@ -78,6 +117,26 @@ const RoomSettings = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Room not found</h2>
           <Button onClick={() => navigate("/rooms")} className="mt-4">
             Back to Rooms
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect if user doesn't have admin access
+  if (!isAdminOrOwner) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-6">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Settings className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">
+            You don't have permission to access room settings. Only room admins and owners can manage room settings.
+          </p>
+          <Button onClick={() => navigate(`/room/${roomId}`)} className="bg-[#1e40af] hover:bg-[#1e3a8a]">
+            Back to Room
           </Button>
         </div>
       </div>
@@ -151,7 +210,7 @@ const RoomSettings = () => {
               onClick={handleRefresh}
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#1e40af] transition-colors"
             >
-              <span className="hidden sm:inline">Pull to refresh</span>
+              <span className="hidden sm:inline">Refresh</span>
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>

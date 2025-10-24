@@ -26,6 +26,7 @@ interface Room {
   description: string;
   room_image_thumbnail: string | null;
   member_count: number;
+  user_role: "owner" | "admin" | "member";
   category: {
     name: string;
   };
@@ -36,7 +37,15 @@ interface FeedItem {
   id: number;
   title: string;
   description?: string;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface Member {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  joined_at: string;
 }
 
 const RoomDashboard = () => {
@@ -47,6 +56,7 @@ const RoomDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<"all" | "event" | "announcement" | "contribution">("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -54,13 +64,16 @@ const RoomDashboard = () => {
   useEffect(() => {
     if (roomId) {
       fetchAllRooms();
+      checkUserRole();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   useEffect(() => {
     if (roomId) {
       fetchFeed();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, filterType]);
 
   const fetchFeed = async () => {
@@ -101,6 +114,72 @@ const RoomDashboard = () => {
     } catch (error) {
       console.error("Error fetching rooms:", error);
       setRooms([]); // Set empty array on error
+    }
+  };
+
+  const checkUserRole = async () => {
+    if (!roomId) {
+      console.log("❌ No roomId");
+      return;
+    }
+    
+    if (!user) {
+      console.log("❌ No user object");
+      return;
+    }
+    
+    console.log("=== CHECKING USER ROLE ===");
+    console.log("Room ID:", roomId);
+    console.log("User object:", user);
+    
+    try {
+      const response = await connectRoomsApi.getRoomMembers(Number(roomId));
+      console.log("Raw API response:", response);
+      
+      const members = response.members as Member[] || [];
+      console.log("Parsed members array:", members);
+      console.log("Members count:", members.length);
+      
+      console.log("Current user ID:", user.id, "(type:", typeof user.id, ")");
+      console.log("Current user email:", user.email);
+      
+      // Log each member for comparison
+      members.forEach((member, index) => {
+        console.log(`Member ${index}:`, {
+          id: member.id,
+          email: member.email,
+          role: member.role,
+          matches_id: member.id === user.id,
+          matches_email: member.email === user.email
+        });
+      });
+      
+      // Find current user in members list by ID or email
+      const currentUserMember = members.find((member: Member) => 
+        member.id === user.id || member.email === user.email
+      );
+      
+      if (currentUserMember) {
+        console.log("✅ Current user FOUND in members:", currentUserMember);
+        console.log("User role:", currentUserMember.role);
+        
+        // Check if user is admin or owner
+        const role = currentUserMember.role?.toLowerCase();
+        const hasAccess = role === 'admin' || role === 'owner';
+        console.log(`Role check: "${currentUserMember.role}" -> lowercase: "${role}" -> hasAccess: ${hasAccess}`);
+        setIsAdminOrOwner(hasAccess);
+      } else {
+        console.log("❌ Current user NOT found in members list");
+        console.log("Tried matching:");
+        console.log("  - By ID:", user.id);
+        console.log("  - By email:", user.email);
+        setIsAdminOrOwner(false);
+      }
+      
+      console.log("=== END USER ROLE CHECK ===");
+    } catch (error) {
+      console.error("❌ Error checking user role:", error);
+      setIsAdminOrOwner(false);
     }
   };
 
@@ -275,14 +354,23 @@ const RoomDashboard = () => {
                 </div>
               </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={() => navigate(`/room/${roomId}/settings`)}
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
+              {/* Settings Icon - Only visible to admins and owners */}
+              {isAdminOrOwner && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20"
+                  onClick={() => navigate(`/room/${roomId}/settings`)}
+                  title="Room Settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </Button>
+              )}
+              
+              {/* Temporary Debug Indicator */}
+              <div className="text-xs text-white/90 ml-2 bg-black/30 px-2 py-1 rounded">
+                Admin: {isAdminOrOwner ? "✓" : "✗"}
+              </div>
             </div>
           </div>
         </header>

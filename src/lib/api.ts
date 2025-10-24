@@ -277,6 +277,19 @@ export const connectRoomsApi = {
       feed: response.feed || response.data || []
     };
   },
+
+  // Get room members
+  getRoomMembers: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/members`, {
+      method: 'GET',
+    });
+    
+    // The API returns members in the 'data' field after request() unwraps the response
+    // response is already the inner data from the API
+    return {
+      members: Array.isArray(response) ? response : (response.members || response.data || [])
+    };
+  },
 };
 
 export { ApiError };
