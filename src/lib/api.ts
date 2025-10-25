@@ -336,10 +336,35 @@ export const subscriptionApi = {
     const response = await request<any>(`/connect-rooms/${roomId}/subscription/payment-methods`, {
       method: 'GET',
     });
+    
+    console.log("Raw payment methods API response:", response);
+    
+    // Handle multiple possible response structures
+    const paymentMethods = response.payment_methods 
+      || response.data?.payment_methods 
+      || (Array.isArray(response.data) ? response.data : [])
+      || (Array.isArray(response) ? response : []);
+    
+    const customerId = response.customer_id 
+      || response.data?.customer_id 
+      || response.stripe_customer_id
+      || response.data?.stripe_customer_id;
+    
+    const defaultMethod = response.default_payment_method 
+      || response.data?.default_payment_method
+      || response.default_payment_method_id
+      || response.data?.default_payment_method_id;
+    
+    console.log("Processed payment methods data:", {
+      payment_methods: paymentMethods,
+      customer_id: customerId,
+      default_payment_method: defaultMethod,
+    });
+    
     return {
-      payment_methods: response.payment_methods || response.data?.payment_methods || [],
-      customer_id: response.customer_id || response.data?.customer_id,
-      default_payment_method: response.default_payment_method || response.data?.default_payment_method,
+      payment_methods: paymentMethods,
+      customer_id: customerId,
+      default_payment_method: defaultMethod,
     };
   },
 

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { subscriptionApi, subscriptionPlansApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { AddPaymentMethodDialog } from "@/components/AddPaymentMethodDialog";
 
 interface Subscription {
   id: number;
@@ -77,6 +78,7 @@ const SubscriptionManage = () => {
   >(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAddCardDialogOpen, setIsAddCardDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -104,10 +106,34 @@ const SubscriptionManage = () => {
   const fetchPaymentMethods = useCallback(async () => {
     if (!roomId) return;
     try {
+      console.log("Fetching payment methods for room:", roomId);
       const data = await subscriptionApi.getPaymentMethods(Number(roomId));
-      setPaymentMethods(data.payment_methods || []);
+      console.log("Payment methods API response:", data);
+      
+      // Handle different response structures
+      const methods = data.payment_methods || data.data?.payment_methods || [];
+      console.log("Extracted payment methods:", methods);
+      
+      // Map the payment methods and mark the default one
+      const mappedMethods = methods.map((pm: any) => ({
+        ...pm,
+        is_default: pm.id === data.default_payment_method || pm.id === data.data?.default_payment_method,
+      }));
+      
+      console.log("Mapped payment methods with default:", mappedMethods);
+      setPaymentMethods(mappedMethods);
     } catch (error) {
       console.error("Error fetching payment methods:", error);
+      if (error instanceof ApiError) {
+        console.error("API Error details:", {
+          status: error.status,
+          message: error.message,
+        });
+        // If 404 or similar, just set empty array
+        if (error.status === 404 || error.status === 400) {
+          setPaymentMethods([]);
+        }
+      }
     }
   }, [roomId]);
 
@@ -415,12 +441,7 @@ const SubscriptionManage = () => {
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-gray-900">Payment Methods</h3>
             <Button
-              onClick={() =>
-                toast({
-                  title: "Coming Soon",
-                  description: "Add payment method feature is under development",
-                })
-              }
+              onClick={() => setIsAddCardDialogOpen(true)}
               variant="outline"
               className="rounded-xl"
             >
@@ -543,6 +564,22 @@ const SubscriptionManage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Payment Method Dialog */}
+      {roomId && (
+        <AddPaymentMethodDialog
+          open={isAddCardDialogOpen}
+          onOpenChange={setIsAddCardDialogOpen}
+          roomId={Number(roomId)}
+          onSuccess={() => {
+            fetchPaymentMethods();
+            toast({
+              title: "Success",
+              description: "Payment method added successfully!",
+            });
+          }}
+        />
+      )}
     </div>
   );
 };
