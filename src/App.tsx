@@ -18,6 +18,7 @@ import ConnectRooms from "./pages/ConnectRooms";
 import RoomDashboard from "./pages/RoomDashboard";
 import RoomSettings from "./pages/RoomSettings";
 import RoomSubscriptionPlans from "./pages/RoomSubscriptionPlans";
+import SubscriptionPlans from "./pages/SubscriptionPlans";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
             {/* Public Routes */}
             <Route path="/" element={<Onboarding />} />
             <Route path="/pricing" element={<Index />} />
+            <Route path="/subscription-plans" element={<SubscriptionPlans />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/verify-otp" element={<VerifyOtp />} />

@@ -22,17 +22,18 @@ class ApiError extends Error {
 
 async function request<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { requiresAuth?: boolean } = {}
 ): Promise<T> {
+  const { requiresAuth = true, ...fetchOptions } = options;
   const token = localStorage.getItem('auth_token');
   
   const config: RequestInit = {
-    ...options,
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
+      ...(requiresAuth && token && { Authorization: `Bearer ${token}` }),
+      ...fetchOptions.headers,
     },
   };
 
