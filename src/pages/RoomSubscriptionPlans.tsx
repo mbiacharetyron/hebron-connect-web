@@ -3,8 +3,24 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Crown, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { subscriptionPlansApi, connectRoomsApi, ApiError } from "@/lib/api";
+import { subscriptionPlansApi, connectRoomsApi, subscriptionApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+interface OriginalPrices {
+  monthly_price: string;
+  annual_price?: string;
+  formatted_monthly_price: string;
+  formatted_annual_price?: string;
+  currency: string;
+}
 
 interface SubscriptionPlan {
   id: number;
@@ -16,6 +32,8 @@ interface SubscriptionPlan {
   formatted_monthly_price: string;
   formatted_annual_price?: string;
   currency: string;
+  was_converted?: boolean;
+  original_prices?: OriginalPrices;
   features: string[];
   max_members_per_room: number | null;
   is_popular: boolean;
@@ -41,6 +59,10 @@ const RoomSubscriptionPlans = () => {
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [isYearly, setIsYearly] = useState(false);
+  const [convertedCurrency, setConvertedCurrency] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -51,11 +73,7 @@ const RoomSubscriptionPlans = () => {
 
   const fetchPlansAndRoom = async () => {
     try {
-      // Fetch subscription plans
-      const plansResponse = await subscriptionPlansApi.getAll();
-      setPlans(plansResponse.plans || []);
-
-      // Fetch current room details
+      // Fetch current room details first
       if (roomId) {
         const roomsResponse = await connectRoomsApi.getMyRooms({ per_page: 50 });
         const currentRoom = roomsResponse.rooms?.find((r) => r.id === Number(roomId));
@@ -63,6 +81,11 @@ const RoomSubscriptionPlans = () => {
           setRoom(currentRoom as Room);
         }
       }
+
+      // Fetch subscription plans with room_id for currency conversion
+      const plansResponse = await subscriptionPlansApi.getAll(roomId ? Number(roomId) : undefined);
+      setPlans(plansResponse.plans || []);
+      setConvertedCurrency(plansResponse.converted_currency || null);
     } catch (error) {
       if (error instanceof ApiError) {
         toast({
@@ -82,11 +105,48 @@ const RoomSubscriptionPlans = () => {
     }
   };
 
-  const handleSubscribe = (planId: number) => {
-    toast({
-      title: "Coming Soon",
-      description: "Subscription purchase flow is under development",
-    });
+  const handleSubscribe = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setIsCheckoutDialogOpen(true);
+  };
+
+  const handleConfirmCheckout = async () => {
+    if (!selectedPlan || !roomId) return;
+
+    setIsProcessing(true);
+    try {
+      const currentUrl = window.location.origin;
+      const billingCycle = isYearly ? 'annual' : 'monthly';
+      
+      const checkoutSession = await subscriptionApi.createCheckout(Number(roomId), {
+        plan_id: selectedPlan.id,
+        billing_cycle: billingCycle,
+        success_url: `${currentUrl}/room/${roomId}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${currentUrl}/room/${roomId}/subscription-plans`,
+      });
+
+      // Redirect to Stripe checkout
+      if (checkoutSession.session_url) {
+        window.location.href = checkoutSession.session_url;
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create checkout session. Please try again.",
+        });
+      }
+    } finally {
+      setIsProcessing(false);
+      setIsCheckoutDialogOpen(false);
+    }
   };
 
   const getCurrentPlanPrice = () => {
@@ -159,6 +219,25 @@ const RoomSubscriptionPlans = () => {
 
       <main className="px-4 sm:px-6 py-6 sm:py-8">
         <div className="max-w-6xl mx-auto">
+          {/* Currency Conversion Notice */}
+          {convertedCurrency && plans.some(p => p.was_converted) && (
+            <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Crown className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1">
+                    Prices Converted to {convertedCurrency}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    All prices are shown in {convertedCurrency} (your room's currency). Original prices are displayed below each plan for reference.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Hero Section */}
           <div className="text-center mb-8 sm:mb-12">
             <div className="flex justify-center mb-4">
@@ -262,6 +341,19 @@ const RoomSubscriptionPlans = () => {
                     <p className="text-sm text-gray-500 mt-1">
                       per {isYearly ? 'year' : 'month'}
                     </p>
+                    
+                    {/* Show original price if currency was converted */}
+                    {plan.was_converted && plan.original_prices && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 mb-1">Original price:</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {isYearly && plan.original_prices.annual_price
+                            ? plan.original_prices.formatted_annual_price
+                            : plan.original_prices.formatted_monthly_price}
+                        </p>
+                      </div>
+                    )}
+                    
                     {isYearly && plan.annual_savings_amount && (
                       <p className="text-sm text-green-600 font-medium mt-2">
                         Save {plan.annual_savings_amount} {plan.currency} annually
@@ -303,7 +395,7 @@ const RoomSubscriptionPlans = () => {
 
                   {/* CTA Button */}
                   <Button
-                    onClick={() => handleSubscribe(plan.id)}
+                    onClick={() => handleSubscribe(plan)}
                     disabled={isCurrentPlan}
                     className={`w-full h-12 sm:h-14 rounded-xl font-semibold text-base sm:text-lg transition-all ${
                       isCurrentPlan
@@ -399,6 +491,83 @@ const RoomSubscriptionPlans = () => {
           </div>
         </div>
       </main>
+
+      {/* Checkout Confirmation Dialog */}
+      <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Confirm Subscription</DialogTitle>
+            <DialogDescription>
+              You're about to subscribe to the {selectedPlan?.name} plan
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPlan && (
+            <div className="space-y-4 py-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Plan:</span>
+                  <span className="font-semibold">{selectedPlan.name}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Billing:</span>
+                  <span className="font-semibold">{isYearly ? 'Annual' : 'Monthly'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Price:</span>
+                  <span className="font-bold text-lg text-[#1e40af]">
+                    {isYearly && selectedPlan.annual_price
+                      ? selectedPlan.formatted_annual_price
+                      : selectedPlan.formatted_monthly_price}
+                  </span>
+                </div>
+                {selectedPlan.was_converted && selectedPlan.original_prices && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500">Original price:</span>
+                      <span className="text-xs text-gray-600">
+                        {isYearly && selectedPlan.original_prices.annual_price
+                          ? selectedPlan.original_prices.formatted_annual_price
+                          : selectedPlan.original_prices.formatted_monthly_price}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  • You'll be redirected to Stripe to complete payment
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Your subscription activates immediately after payment
+                </p>
+                <p className="text-sm text-gray-600">
+                  • You can cancel anytime from subscription settings
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCheckoutDialogOpen(false)}
+              disabled={isProcessing}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmCheckout}
+              disabled={isProcessing}
+              className="bg-[#1e40af] hover:bg-[#1e3a8a] rounded-xl"
+            >
+              {isProcessing ? "Processing..." : "Proceed to Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

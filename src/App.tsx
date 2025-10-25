@@ -19,6 +19,8 @@ import RoomDashboard from "./pages/RoomDashboard";
 import RoomSettings from "./pages/RoomSettings";
 import RoomSubscriptionPlans from "./pages/RoomSubscriptionPlans";
 import SubscriptionPlans from "./pages/SubscriptionPlans";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
+import SubscriptionManage from "./pages/SubscriptionManage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -80,6 +82,22 @@ const App = () => (
                     element={
                       <ProtectedRoute>
                         <RoomSubscriptionPlans />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/room/:roomId/subscription-success"
+                    element={
+                      <ProtectedRoute>
+                        <SubscriptionSuccess />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/room/:roomId/subscription-manage"
+                    element={
+                      <ProtectedRoute>
+                        <SubscriptionManage />
                       </ProtectedRoute>
                     }
                   />

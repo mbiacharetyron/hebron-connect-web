@@ -270,12 +270,20 @@ const RoomSettings = () => {
               </div>
             </div>
 
-            <Button 
-              onClick={() => navigate(`/room/${roomId}/subscription-plans`)}
-              className="w-full bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-semibold h-12 shadow-lg"
-            >
-              Manage Subscription
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button 
+                onClick={() => navigate(`/room/${roomId}/subscription-manage`)}
+                className="flex-1 bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-semibold h-12 shadow-lg"
+              >
+                Manage Subscription
+              </Button>
+              <Button 
+                onClick={() => navigate(`/room/${roomId}/subscription-plans`)}
+                className="flex-1 bg-white/20 text-white hover:bg-white/30 border-2 border-white/50 rounded-xl font-semibold h-12"
+              >
+                Change Plan
+              </Button>
+            </div>
           </div>
         </div>
 

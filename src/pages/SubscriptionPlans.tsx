@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Crown, Sparkles, Zap, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { subscriptionPlansApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/images/hConnect-logo3.png";
+
+interface OriginalPrices {
+  monthly_price: string;
+  annual_price?: string;
+  formatted_monthly_price: string;
+  formatted_annual_price?: string;
+  currency: string;
+}
 
 interface SubscriptionPlan {
   id: number;
@@ -17,6 +25,8 @@ interface SubscriptionPlan {
   formatted_monthly_price: string;
   formatted_annual_price?: string;
   currency: string;
+  was_converted?: boolean;
+  original_prices?: OriginalPrices;
   features: string[];
   max_members_per_room: number | null;
   is_popular: boolean;
@@ -32,11 +42,7 @@ const SubscriptionPlans = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchPlans();
-  }, []);
-
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     try {
       const response = await subscriptionPlansApi.getAll();
       setPlans(response.plans || []);
@@ -57,7 +63,11 @@ const SubscriptionPlans = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPlans();
+  }, [fetchPlans]);
 
   const handleGetStarted = () => {
     // Redirect to registration page
