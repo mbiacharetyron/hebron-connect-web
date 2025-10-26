@@ -53,10 +53,22 @@ interface Room {
   };
 }
 
+interface CurrentSubscription {
+  id: number;
+  plan_id: number;
+  plan_name: string;
+  plan_slug: string;
+  status: string;
+  billing_cycle: string;
+  amount_paid: string;
+  expires_at: string;
+}
+
 const RoomSubscriptionPlans = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [isYearly, setIsYearly] = useState(false);
   const [convertedCurrency, setConvertedCurrency] = useState<string | null>(null);
@@ -78,7 +90,21 @@ const RoomSubscriptionPlans = () => {
         const roomsResponse = await connectRoomsApi.getMyRooms({ per_page: 50 });
         const currentRoom = roomsResponse.rooms?.find((r) => r.id === Number(roomId));
         if (currentRoom) {
+          console.log("Current room data:", currentRoom);
+          console.log("Subscription plan from room:", currentRoom.subscription_plan);
           setRoom(currentRoom as Room);
+        }
+
+        // Fetch current subscription separately
+        try {
+          const subscriptionData = await subscriptionApi.getSubscription(Number(roomId));
+          console.log("Current subscription data:", subscriptionData);
+          if (subscriptionData && subscriptionData.status === 'active') {
+            setCurrentSubscription(subscriptionData as CurrentSubscription);
+          }
+        } catch (error) {
+          console.log("No active subscription found (user may be on free plan)");
+          setCurrentSubscription(null);
         }
       }
 
@@ -115,21 +141,55 @@ const RoomSubscriptionPlans = () => {
 
     setIsProcessing(true);
     try {
-      const currentUrl = window.location.origin;
       const billingCycle = isYearly ? 'annual' : 'monthly';
       
-      const checkoutSession = await subscriptionApi.createCheckout(Number(roomId), {
-        plan_id: selectedPlan.id,
-        billing_cycle: billingCycle,
-        success_url: `${currentUrl}/room/${roomId}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${currentUrl}/room/${roomId}/subscription-plans`,
-      });
+      // Check if room has an active subscription
+      console.log("Checking for existing subscription...");
+      console.log("Current subscription:", currentSubscription);
+      
+      const hasActiveSubscription = !!currentSubscription && currentSubscription.status === 'active';
+      console.log("Has active subscription:", hasActiveSubscription);
+      
+      if (hasActiveSubscription) {
+        // Update existing subscription (upgrade/downgrade)
+        console.log("Updating existing subscription to plan:", selectedPlan.id);
+        
+        const response = await subscriptionApi.updateSubscription(Number(roomId), {
+          new_plan_id: selectedPlan.id,
+          new_billing_cycle: billingCycle,
+          proration_behavior: 'create_prorations', // Prorate the charges
+        });
 
-      // Redirect to Stripe checkout
-      if (checkoutSession.session_url) {
-        window.location.href = checkoutSession.session_url;
+        console.log("Subscription updated:", response);
+        
+        toast({
+          title: "Success",
+          description: `Subscription updated to ${selectedPlan.name} successfully!`,
+        });
+
+        // Redirect back to room settings or subscription manage page
+        setTimeout(() => {
+          navigate(`/room/${roomId}/subscription-manage`);
+        }, 1500);
+      } else {
+        // Create new subscription (first time)
+        console.log("Creating new subscription checkout for plan:", selectedPlan.id);
+        const currentUrl = window.location.origin;
+        
+        const checkoutSession = await subscriptionApi.createCheckout(Number(roomId), {
+          plan_id: selectedPlan.id,
+          billing_cycle: billingCycle,
+          success_url: `${currentUrl}/room/${roomId}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${currentUrl}/room/${roomId}/subscription-plans`,
+        });
+
+        // Redirect to Stripe checkout
+        if (checkoutSession.session_url) {
+          window.location.href = checkoutSession.session_url;
+        }
       }
     } catch (error) {
+      console.error("Error processing subscription:", error);
       if (error instanceof ApiError) {
         toast({
           variant: "destructive",
@@ -140,7 +200,7 @@ const RoomSubscriptionPlans = () => {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to create checkout session. Please try again.",
+          description: "Failed to process subscription. Please try again.",
         });
       }
     } finally {
@@ -150,13 +210,13 @@ const RoomSubscriptionPlans = () => {
   };
 
   const getCurrentPlanPrice = () => {
-    if (!room?.subscription_plan?.id) return 0;
-    const currentPlan = plans.find(p => p.id === room.subscription_plan?.id);
+    if (!currentSubscription?.plan_id) return 0;
+    const currentPlan = plans.find(p => p.id === currentSubscription.plan_id);
     return currentPlan ? parseFloat(currentPlan.monthly_price) : 0;
   };
 
   const getPlanComparison = (plan: SubscriptionPlan) => {
-    const currentPlanId = room?.subscription_plan?.id;
+    const currentPlanId = currentSubscription?.plan_id;
     if (!currentPlanId) return "upgrade";
     if (plan.id === currentPlanId) return "current";
     
@@ -417,7 +477,7 @@ const RoomSubscriptionPlans = () => {
           </div>
 
           {/* Current Subscription Info */}
-          {room?.subscription_plan ? (
+          {currentSubscription ? (
             <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-6 sm:p-8 border-2 border-green-300 shadow-lg">
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
@@ -429,13 +489,16 @@ const RoomSubscriptionPlans = () => {
                   </h3>
                   <p className="text-base sm:text-lg text-gray-800 mb-2">
                     You are currently subscribed to the{" "}
-                    <span className="font-bold text-green-700">{room.subscription_plan.name}</span>
+                    <span className="font-bold text-green-700">{currentSubscription.plan_name}</span>
                   </p>
-                  {room.subscription_plan.expires_at && (
+                  <p className="text-sm sm:text-base text-gray-700 mb-1">
+                    Billing Cycle: <span className="font-semibold capitalize">{currentSubscription.billing_cycle}</span>
+                  </p>
+                  {currentSubscription.expires_at && (
                     <p className="text-sm sm:text-base text-gray-700">
                       Valid until{" "}
                       <span className="font-semibold">
-                        {new Date(room.subscription_plan.expires_at).toLocaleDateString("en-US", {
+                        {new Date(currentSubscription.expires_at).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",
@@ -443,9 +506,9 @@ const RoomSubscriptionPlans = () => {
                       </span>
                     </p>
                   )}
-                  {room.subscription_plan.status !== "active" && (
+                  {currentSubscription.status !== "active" && (
                     <Badge variant="destructive" className="mt-2">
-                      {room.subscription_plan.status}
+                      {currentSubscription.status}
                     </Badge>
                   )}
                 </div>
@@ -496,17 +559,42 @@ const RoomSubscriptionPlans = () => {
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Confirm Subscription</DialogTitle>
+            <DialogTitle className="text-2xl">
+              {currentSubscription 
+                ? (getPlanComparison(selectedPlan!) === 'upgrade' ? 'Confirm Upgrade' : 'Confirm Downgrade')
+                : 'Confirm Subscription'
+              }
+            </DialogTitle>
             <DialogDescription>
-              You're about to subscribe to the {selectedPlan?.name} plan
+              {currentSubscription && selectedPlan
+                ? `Change your subscription from ${currentSubscription.plan_name} to ${selectedPlan.name}`
+                : `You're about to subscribe to the ${selectedPlan?.name} plan`
+              }
             </DialogDescription>
           </DialogHeader>
 
           {selectedPlan && (
             <div className="space-y-4 py-4">
+              {/* Current vs New Plan Comparison */}
+              {currentSubscription && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm text-gray-700 font-medium">Current Plan:</span>
+                    <span className="font-semibold text-gray-900">{currentSubscription.plan_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-700 font-medium">New Plan:</span>
+                    <span className="font-semibold text-[#1e40af]">{selectedPlan.name}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Plan Details */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-600">Plan:</span>
+                  <span className="text-sm text-gray-600">
+                    {currentSubscription ? 'New Plan:' : 'Plan:'}
+                  </span>
                   <span className="font-semibold">{selectedPlan.name}</span>
                 </div>
                 <div className="flex justify-between items-center mb-2">
@@ -535,16 +623,58 @@ const RoomSubscriptionPlans = () => {
                 )}
               </div>
 
+              {/* What Happens Next */}
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  • You'll be redirected to Stripe to complete payment
-                </p>
-                <p className="text-sm text-gray-600">
-                  • Your subscription activates immediately after payment
-                </p>
-                <p className="text-sm text-gray-600">
-                  • You can cancel anytime from subscription settings
-                </p>
+                {currentSubscription ? (
+                  <>
+                    {getPlanComparison(selectedPlan) === 'upgrade' ? (
+                      <>
+                        <p className="text-sm font-medium text-green-700">
+                          ✓ Upgrading your subscription
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • Your subscription will be updated immediately
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • You'll be charged the prorated difference
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • Access to new features activates instantly
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-orange-700">
+                          ⚠ Downgrading your subscription
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • Your subscription will be updated immediately
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • You'll be credited the prorated difference
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          • Some features may become unavailable
+                        </p>
+                      </>
+                    )}
+                    <p className="text-sm text-gray-600">
+                      • Your existing payment method will be used
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      • You'll be redirected to Stripe to complete payment
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      • Your subscription activates immediately after payment
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      • You can cancel anytime from subscription settings
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -563,7 +693,12 @@ const RoomSubscriptionPlans = () => {
               disabled={isProcessing}
               className="bg-[#1e40af] hover:bg-[#1e3a8a] rounded-xl"
             >
-              {isProcessing ? "Processing..." : "Proceed to Payment"}
+              {isProcessing 
+                ? "Processing..." 
+                : currentSubscription && selectedPlan
+                  ? (getPlanComparison(selectedPlan) === 'upgrade' ? "Confirm Upgrade" : "Confirm Downgrade")
+                  : "Proceed to Payment"
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

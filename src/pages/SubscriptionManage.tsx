@@ -67,12 +67,36 @@ interface Plan {
   formatted_annual_price?: string;
 }
 
+interface Invoice {
+  id: string;
+  number: string;
+  status: string;
+  amount_due: number;
+  amount_paid: number;
+  total: number;
+  currency: string;
+  created: string;
+  due_date: string | null;
+  period_start: string;
+  period_end: string;
+  invoice_pdf: string;
+  hosted_invoice_url: string;
+  customer_email: string;
+  customer_name: string;
+  description: string;
+  subscription_id: string;
+  paid: boolean;
+  attempted: boolean;
+}
+
 const SubscriptionManage = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [selectedAction, setSelectedAction] = useState<
     "upgrade" | "downgrade" | "billing" | "pause" | "cancel" | null
   >(null);
@@ -146,14 +170,37 @@ const SubscriptionManage = () => {
     }
   }, []);
 
+  const fetchInvoices = useCallback(async () => {
+    if (!roomId) return;
+    setLoadingInvoices(true);
+    try {
+      console.log("Fetching invoices for room:", roomId);
+      const data = await subscriptionApi.getInvoices(Number(roomId));
+      console.log("Invoices data:", data);
+      setInvoices(data.invoices || []);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+      if (error instanceof ApiError) {
+        // If 404 or no subscription, just set empty array
+        if (error.status === 404 || error.status === 400) {
+          setInvoices([]);
+        }
+      }
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }, [roomId]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       await Promise.all([fetchSubscription(), fetchPaymentMethods(), fetchPlans()]);
       setLoading(false);
+      // Fetch invoices separately (not critical for initial load)
+      fetchInvoices();
     };
     loadData();
-  }, [fetchSubscription, fetchPaymentMethods, fetchPlans]);
+  }, [fetchSubscription, fetchPaymentMethods, fetchPlans, fetchInvoices]);
 
   const handleSetDefaultCard = async (paymentMethodId: string) => {
     if (!roomId) return;
@@ -504,10 +551,114 @@ const SubscriptionManage = () => {
 
         {/* Billing History */}
         <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Billing History</h3>
-          <p className="text-gray-600 text-center py-8">
-            Billing history feature coming soon
-          </p>
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Billing History</h3>
+          
+          {loadingInvoices ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#1e40af] mx-auto"></div>
+              <p className="text-gray-600 mt-4">Loading invoices...</p>
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-600">No billing history available</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Invoices will appear here after your first payment
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {invoices.map((invoice) => (
+                <div
+                  key={invoice.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <p className="font-semibold text-gray-900">
+                        Invoice #{invoice.number}
+                      </p>
+                      <Badge
+                        className={`${
+                          invoice.status === 'paid'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                            : invoice.status === 'open'
+                            ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {invoice.status === 'paid' ? (
+                          <><Check className="w-3 h-3 mr-1" /> Paid</>
+                        ) : (
+                          invoice.status
+                        )}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      {invoice.description}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span>
+                        {new Date(invoice.created).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {new Date(invoice.period_start).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}{' '}
+                        -{' '}
+                        {new Date(invoice.period_end).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">
+                        {invoice.currency.toUpperCase()} {invoice.total.toFixed(2)}
+                      </p>
+                      {invoice.amount_paid < invoice.total && (
+                        <p className="text-xs text-red-600">
+                          Due: {invoice.currency.toUpperCase()} {invoice.amount_due.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="rounded-lg">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => window.open(invoice.hosted_invoice_url, '_blank')}
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                          View Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => window.open(invoice.invoice_pdf, '_blank')}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Download PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 

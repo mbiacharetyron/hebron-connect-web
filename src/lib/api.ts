@@ -386,6 +386,36 @@ export const subscriptionApi = {
     });
     return response;
   },
+
+  // Get invoices
+  getInvoices: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/invoices`, {
+      method: 'GET',
+    });
+    console.log("Raw invoices API response:", response);
+    
+    // Handle multiple possible response structures
+    const invoices = response.invoices
+      || response.data?.invoices
+      || (Array.isArray(response.data) ? response.data : [])
+      || (Array.isArray(response) ? response : []);
+    
+    console.log("Processed invoices data:", invoices);
+    
+    return {
+      invoices,
+      room: response.room || response.data?.room,
+      subscription: response.subscription || response.data?.subscription,
+    };
+  },
+
+  // Get single invoice
+  getInvoice: async (roomId: number, invoiceId: string) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/invoices/${invoiceId}`, {
+      method: 'GET',
+    });
+    return response.invoice || response.data?.invoice || response;
+  },
 };
 
 // Connect Rooms API
