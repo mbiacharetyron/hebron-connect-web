@@ -22,17 +22,18 @@ class ApiError extends Error {
 
 async function request<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { requiresAuth?: boolean } = {}
 ): Promise<T> {
+  const { requiresAuth = true, ...fetchOptions } = options;
   const token = localStorage.getItem('auth_token');
   
   const config: RequestInit = {
-    ...options,
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
+      ...(requiresAuth && token && { Authorization: `Bearer ${token}` }),
+      ...fetchOptions.headers,
     },
   };
 
@@ -209,6 +210,214 @@ export const authApi = {
   },
 };
 
+// Subscription Plans API
+export const subscriptionPlansApi = {
+  // Get all subscription plans
+  getAll: async (roomId?: number) => {
+    const queryParams = roomId ? `?room_id=${roomId}` : '';
+    const response = await request<any>(`/subscription-plans${queryParams}`, {
+      method: 'GET',
+      requiresAuth: !!roomId, // Auth required if room_id is provided
+    });
+    return {
+      plans: response.plans || response.data?.plans || [],
+      converted_currency: response.converted_currency || response.data?.converted_currency || null
+    };
+  },
+
+  // Get specific plan by ID
+  getPlanById: async (planId: number, roomId?: number) => {
+    const queryParams = roomId ? `?room_id=${roomId}` : '';
+    const response = await request<any>(`/subscription-plans/${planId}${queryParams}`, {
+      method: 'GET',
+      requiresAuth: !!roomId,
+    });
+    return {
+      plan: response.plan || response.data?.plan || null
+    };
+  },
+
+  // Get plan by slug
+  getPlanBySlug: async (slug: string, roomId?: number) => {
+    const queryParams = roomId ? `?room_id=${roomId}` : '';
+    const response = await request<any>(`/subscription-plans/slug/${slug}${queryParams}`, {
+      method: 'GET',
+      requiresAuth: !!roomId,
+    });
+    return {
+      plan: response.plan || response.data?.plan || null
+    };
+  },
+
+  // Get popular plans
+  getPopularPlans: async (roomId?: number) => {
+    const queryParams = roomId ? `?room_id=${roomId}` : '';
+    const response = await request<any>(`/subscription-plans/popular${queryParams}`, {
+      method: 'GET',
+      requiresAuth: !!roomId,
+    });
+    return {
+      plans: response.plans || response.data?.plans || []
+    };
+  },
+};
+
+// Subscription Management API
+export const subscriptionApi = {
+  // Create Stripe checkout session
+  createCheckout: async (roomId: number, data: {
+    plan_id: number;
+    billing_cycle: 'monthly' | 'annual';
+    success_url: string;
+    cancel_url: string;
+  }) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscribe`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return {
+      session_id: response.session_id || response.data?.session_id,
+      session_url: response.session_url || response.data?.session_url,
+      expires_at: response.expires_at || response.data?.expires_at,
+      plan_name: response.plan_name || response.data?.plan_name,
+      billing_cycle: response.billing_cycle || response.data?.billing_cycle,
+      amount: response.amount || response.data?.amount,
+      currency: response.currency || response.data?.currency,
+    };
+  },
+
+  // Get room subscription
+  getSubscription: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription`, {
+      method: 'GET',
+    });
+    return response;
+  },
+
+  // Update subscription (upgrade/downgrade/switch billing)
+  updateSubscription: async (roomId: number, data: {
+    new_plan_id?: number;
+    new_billing_cycle?: 'monthly' | 'annual';
+    proration_behavior?: 'create_prorations' | 'none';
+  }) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response;
+  },
+
+  // Pause subscription
+  pauseSubscription: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/pause`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  // Resume subscription
+  resumeSubscription: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/resume`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  // Cancel subscription
+  cancelSubscription: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/cancel`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  // Get payment methods
+  getPaymentMethods: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/payment-methods`, {
+      method: 'GET',
+    });
+    
+    console.log("Raw payment methods API response:", response);
+    
+    // Handle multiple possible response structures
+    const paymentMethods = response.payment_methods 
+      || response.data?.payment_methods 
+      || (Array.isArray(response.data) ? response.data : [])
+      || (Array.isArray(response) ? response : []);
+    
+    const customerId = response.customer_id 
+      || response.data?.customer_id 
+      || response.stripe_customer_id
+      || response.data?.stripe_customer_id;
+    
+    const defaultMethod = response.default_payment_method 
+      || response.data?.default_payment_method
+      || response.default_payment_method_id
+      || response.data?.default_payment_method_id;
+    
+    console.log("Processed payment methods data:", {
+      payment_methods: paymentMethods,
+      customer_id: customerId,
+      default_payment_method: defaultMethod,
+    });
+    
+    return {
+      payment_methods: paymentMethods,
+      customer_id: customerId,
+      default_payment_method: defaultMethod,
+    };
+  },
+
+  // Create setup intent for adding payment method
+  createSetupIntent: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/payment-methods/setup-intent`, {
+      method: 'POST',
+    });
+    return {
+      client_secret: response.client_secret || response.data?.client_secret,
+      setup_intent_id: response.setup_intent_id || response.data?.setup_intent_id,
+    };
+  },
+
+  // Set default payment method
+  setDefaultPaymentMethod: async (roomId: number, paymentMethodId: string) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/payment-methods/${paymentMethodId}/set-default`, {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  // Get invoices
+  getInvoices: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/invoices`, {
+      method: 'GET',
+    });
+    console.log("Raw invoices API response:", response);
+    
+    // Handle multiple possible response structures
+    const invoices = response.invoices
+      || response.data?.invoices
+      || (Array.isArray(response.data) ? response.data : [])
+      || (Array.isArray(response) ? response : []);
+    
+    console.log("Processed invoices data:", invoices);
+    
+    return {
+      invoices,
+      room: response.room || response.data?.room,
+      subscription: response.subscription || response.data?.subscription,
+    };
+  },
+
+  // Get single invoice
+  getInvoice: async (roomId: number, invoiceId: string) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/subscription/invoices/${invoiceId}`, {
+      method: 'GET',
+    });
+    return response.invoice || response.data?.invoice || response;
+  },
+};
+
 // Connect Rooms API
 export const connectRoomsApi = {
   // Get user's connect rooms
@@ -278,11 +487,17 @@ export const connectRoomsApi = {
     };
   },
 
-  // Get room details
-  getRoomDetails: async (roomId: number) => {
-    return request(`/connect-room/${roomId}`, {
+  // Get room members
+  getRoomMembers: async (roomId: number) => {
+    const response = await request<any>(`/connect-rooms/${roomId}/members`, {
       method: 'GET',
     });
+    
+    // The API returns members in the 'data' field after request() unwraps the response
+    // response is already the inner data from the API
+    return {
+      members: Array.isArray(response) ? response : (response.members || response.data || [])
+    };
   },
 };
 

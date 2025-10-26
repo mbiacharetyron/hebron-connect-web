@@ -12,6 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import logo from "@/assets/images/hConnect-logo3.png";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { connectRoomsApi, ApiError } from "@/lib/api";
@@ -25,6 +26,7 @@ interface Room {
   description: string;
   room_image_thumbnail: string | null;
   member_count: number;
+  user_role: "owner" | "admin" | "member";
   category: {
     name: string;
   };
@@ -35,7 +37,15 @@ interface FeedItem {
   id: number;
   title: string;
   description?: string;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface Member {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  joined_at: string;
 }
 
 const RoomDashboard = () => {
@@ -46,37 +56,25 @@ const RoomDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<"all" | "event" | "announcement" | "contribution">("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
 
   useEffect(() => {
     if (roomId) {
-      fetchRoomData();
       fetchAllRooms();
+      checkUserRole();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   useEffect(() => {
     if (roomId) {
       fetchFeed();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, filterType]);
-
-  const fetchRoomData = async () => {
-    try {
-      const response = await connectRoomsApi.getRoomDetails(Number(roomId));
-      setRoom(response);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message,
-        });
-      }
-    }
-  };
 
   const fetchFeed = async () => {
     try {
@@ -107,9 +105,81 @@ const RoomDashboard = () => {
     try {
       const response = await connectRoomsApi.getMyRooms({ per_page: 50 });
       setRooms(response.rooms || []);
+      
+      // Find and set the current room from the list
+      const currentRoom = response.rooms?.find(r => r.id === Number(roomId));
+      if (currentRoom) {
+        setRoom(currentRoom);
+      }
     } catch (error) {
       console.error("Error fetching rooms:", error);
       setRooms([]); // Set empty array on error
+    }
+  };
+
+  const checkUserRole = async () => {
+    if (!roomId) {
+      console.log("❌ No roomId");
+      return;
+    }
+    
+    if (!user) {
+      console.log("❌ No user object");
+      return;
+    }
+    
+    console.log("=== CHECKING USER ROLE ===");
+    console.log("Room ID:", roomId);
+    console.log("User object:", user);
+    
+    try {
+      const response = await connectRoomsApi.getRoomMembers(Number(roomId));
+      console.log("Raw API response:", response);
+      
+      const members = response.members as Member[] || [];
+      console.log("Parsed members array:", members);
+      console.log("Members count:", members.length);
+      
+      console.log("Current user ID:", user.id, "(type:", typeof user.id, ")");
+      console.log("Current user email:", user.email);
+      
+      // Log each member for comparison
+      members.forEach((member, index) => {
+        console.log(`Member ${index}:`, {
+          id: member.id,
+          email: member.email,
+          role: member.role,
+          matches_id: member.id === user.id,
+          matches_email: member.email === user.email
+        });
+      });
+      
+      // Find current user in members list by ID or email
+      const currentUserMember = members.find((member: Member) => 
+        member.id === user.id || member.email === user.email
+      );
+      
+      if (currentUserMember) {
+        console.log("✅ Current user FOUND in members:", currentUserMember);
+        console.log("User role:", currentUserMember.role);
+        
+        // Check if user is admin or owner
+        const role = currentUserMember.role?.toLowerCase();
+        const hasAccess = role === 'admin' || role === 'owner';
+        console.log(`Role check: "${currentUserMember.role}" -> lowercase: "${role}" -> hasAccess: ${hasAccess}`);
+        setIsAdminOrOwner(hasAccess);
+      } else {
+        console.log("❌ Current user NOT found in members list");
+        console.log("Tried matching:");
+        console.log("  - By ID:", user.id);
+        console.log("  - By email:", user.email);
+        setIsAdminOrOwner(false);
+      }
+      
+      console.log("=== END USER ROLE CHECK ===");
+    } catch (error) {
+      console.error("❌ Error checking user role:", error);
+      setIsAdminOrOwner(false);
     }
   };
 
@@ -121,19 +191,22 @@ const RoomDashboard = () => {
   const SidebarContent = () => (
     <div className="h-full flex flex-col bg-white">
       {/* Sidebar Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Hebron Connect</h2>
+      <div className="p-6 bg-gradient-to-r from-[#1e40af] to-[#1e3a8a]">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="Hebron Connect" className="w-10 h-10 object-contain" />
+            <h2 className="text-xl font-bold text-white">Hebron Connect</h2>
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden text-white hover:bg-white/20"
             onClick={() => setSidebarOpen(false)}
           >
             <X className="w-5 h-5" />
           </Button>
         </div>
-        <p className="text-sm text-gray-600">Connect & Collaborate</p>
+        <p className="text-sm text-blue-100">Connect & Collaborate</p>
       </div>
 
       {/* Search Rooms */}
@@ -241,12 +314,12 @@ const RoomDashboard = () => {
       </Sheet>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-h-screen bg-gray-50">
         {/* Header */}
-        <header className="bg-gradient-to-r from-[#1e40af] to-[#1e3a8a] text-white shadow-lg sticky top-0 z-40">
+        <header className="bg-gradient-to-r from-[#1e40af] to-[#1e3a8a] text-white shadow-lg sticky top-0 z-40 bg-opacity-100">
           <div className="px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
                   <SheetTrigger asChild>
                     <Button
@@ -259,7 +332,7 @@ const RoomDashboard = () => {
                   </SheetTrigger>
                 </Sheet>
                 
-                <div className="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden">
+                <div className="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {room?.room_image_thumbnail ? (
                     <img
                       src={room.room_image_thumbnail}
@@ -271,7 +344,7 @@ const RoomDashboard = () => {
                   )}
                 </div>
                 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h1 className="text-lg sm:text-xl font-bold line-clamp-1">
                     {room?.name || "Loading..."}
                   </h1>
@@ -281,33 +354,38 @@ const RoomDashboard = () => {
                 </div>
               </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
+              {/* Settings Icon - Only visible to admins and owners */}
+              {isAdminOrOwner && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 flex-shrink-0"
+                  onClick={() => navigate(`/room/${roomId}/settings`)}
+                  title="Room Settings"
+                >
+                  <Settings className="w-5 h-5" />
+                </Button>
+              )}
             </div>
           </div>
         </header>
 
         {/* Document Banner */}
-        <div className="px-4 sm:px-6 py-4">
-          <div className="bg-gradient-to-r from-[#1e40af] to-[#1e3a8a] rounded-2xl p-6 text-white shadow-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <FolderOpen className="w-7 h-7" />
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50">
+          <div className="bg-gradient-to-r from-[#1e40af] to-[#1e3a8a] rounded-2xl p-4 sm:p-6 text-white shadow-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div className="flex items-start gap-3 sm:gap-4 w-full sm:w-auto">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <FolderOpen className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold mb-2">Documents</h3>
-                  <p className="text-blue-100 text-sm">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg sm:text-xl font-bold mb-1 sm:mb-2">Documents</h3>
+                  <p className="text-blue-100 text-xs sm:text-sm leading-snug">
                     Find here the archives of your Connect-Room to stay updated
                   </p>
                 </div>
               </div>
-              <Button className="bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-medium flex-shrink-0 ml-4 shadow-sm">
+              <Button className="bg-white text-[#1e40af] hover:bg-blue-50 rounded-xl font-medium shadow-sm w-full sm:w-auto h-10 sm:h-auto">
                 View Docs <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -315,11 +393,11 @@ const RoomDashboard = () => {
         </div>
 
         {/* Feed Filter Tabs */}
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white relative z-10">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
             <button
               onClick={() => setFilterType("all")}
-              className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all flex-shrink-0 ${
                 filterType === "all"
                   ? "bg-[#1e40af] text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -329,56 +407,56 @@ const RoomDashboard = () => {
             </button>
             <button
               onClick={() => setFilterType("event")}
-              className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap flex items-center gap-2 transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 sm:gap-2 transition-all flex-shrink-0 ${
                 filterType === "event"
                   ? "bg-[#1e40af] text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <Calendar className={`w-4 h-4 ${filterType === "event" ? "text-white" : "text-gray-700"}`} />
+              <Calendar className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${filterType === "event" ? "text-white" : "text-gray-700"}`} />
               Events
             </button>
             <button
               onClick={() => setFilterType("announcement")}
-              className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap flex items-center gap-2 transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 sm:gap-2 transition-all flex-shrink-0 ${
                 filterType === "announcement"
                   ? "bg-[#1e40af] text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <Bell className={`w-4 h-4 ${filterType === "announcement" ? "text-white" : "text-gray-700"}`} />
+              <Bell className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${filterType === "announcement" ? "text-white" : "text-gray-700"}`} />
               Announcements
             </button>
             <button
               onClick={() => setFilterType("contribution")}
-              className={`px-4 py-2 rounded-xl font-medium text-sm whitespace-nowrap flex items-center gap-2 transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 sm:gap-2 transition-all flex-shrink-0 ${
                 filterType === "contribution"
                   ? "bg-[#1e40af] text-white shadow-md"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              <DollarSign className={`w-4 h-4 ${filterType === "contribution" ? "text-white" : "text-gray-700"}`} />
+              <DollarSign className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${filterType === "contribution" ? "text-white" : "text-gray-700"}`} />
               Contributions
             </button>
           </div>
         </div>
 
         {/* Feed Content */}
-        <main className="flex-1 px-4 sm:px-6 py-6">
+        <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 bg-gray-50 relative z-10">
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1e40af]"></div>
             </div>
           ) : feed.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-              <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Updates Yet</h3>
-              <p className="text-gray-600">
+            <div className="bg-white rounded-2xl shadow-sm p-8 sm:p-12 text-center">
+              <Bell className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No Updates Yet</h3>
+              <p className="text-sm sm:text-base text-gray-600">
                 There are no {filterType !== "all" ? filterType + "s" : "updates"} in this room yet
               </p>
             </div>
           ) : (
-            <div className="space-y-4 max-w-4xl">
+            <div className="space-y-3 sm:space-y-4 w-full max-w-4xl">
               {feed?.map((item) => (
                 <FeedItemCard key={`${item.type}-${item.id}`} item={item} />
               ))}

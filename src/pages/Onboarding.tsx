@@ -112,6 +112,12 @@ const Onboarding = () => {
                 >
                   Login
                 </Button>
+                <button
+                  onClick={() => navigate("/subscription-plans")}
+                  className="w-full text-center text-[#1e40af] hover:text-[#1e3a8a] text-sm font-medium mt-2"
+                >
+                  View Subscription Plans →
+                </button>
               </>
             ) : (
               <>
