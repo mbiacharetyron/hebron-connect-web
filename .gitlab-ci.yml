@@ -1,0 +1,74 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  IMAGE_NAME: registry.gitlab.com/hebron-global-llc/hebron-connect-web/h-connect
+  VERSION: $(date +%y.%m.%d.%H)
+
+build:
+  stage: build
+  image: docker:26.1.2-cli
+  services:
+    - docker:26.1.2-dind
+    
+  before_script:
+    - apk add --no-cache apt
+    - apk add --update git
+    - apk add --no-cache aws-cli
+   
+    - git --version
+    - docker --version
+    - aws --version
+
+    # Login to GitLab Container Registry
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+
+    - export VERSION=$(date +%y.%m.%d.%H)
+    - echo $VERSION
+
+  script:
+    # Build Docker image with environment variables
+    - docker build 
+        --build-arg VITE_STRIPE_PUBLISHABLE_KEY="$VITE_STRIPE_PUBLISHABLE_KEY"
+        --no-cache 
+        -t h-cab-image:$VERSION .
+    
+    - docker tag h-cab-image:$VERSION $IMAGE_NAME:$VERSION
+    - docker push $IMAGE_NAME:$VERSION
+    - docker rmi h-cab-image:$VERSION
+    - echo "Building complete."
+    
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+deploy:
+  stage: deploy
+  environment: production
+  before_script:
+    - chmod 400 $SSH_KEY
+    - export VERSION=$(date +%y.%m.%d.%H)
+    # - echo "Deploying version: $VERSION"
+    # - echo "Image: $IMAGE_NAME:$VERSION"
+
+  script:
+    - echo "Starting deployment..."
+
+    # Deploy using direct Docker commands
+    - ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@$IP_ADDRESS "
+        echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY &&
+        docker stop hebron-connect-web || true &&
+        docker rm hebron-connect-web || true &&
+        docker system prune -f &&
+        docker run -d 
+          --name hebron-connect-web 
+          --restart=always 
+          -p 3200:3200 
+          -e NODE_ENV=production
+          $IMAGE_NAME:$VERSION &&
+        echo 'Deployment completed successfully'"
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    
