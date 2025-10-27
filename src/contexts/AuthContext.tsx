@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi } from '@/lib/api';
+import { clearBrowserDeviceId } from '@/utils/browserUtils';
 
 interface User {
   id: number;
@@ -91,6 +92,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(null);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      // Clear browser device ID to generate new one on next login
+      clearBrowserDeviceId();
     }
   };
 

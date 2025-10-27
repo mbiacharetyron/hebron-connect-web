@@ -7,13 +7,15 @@ interface ApiResponse<T = any> {
   data?: T;
   errors?: Record<string, string[]>;
   code?: number;
+  error_code?: string;
 }
 
 class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public errors?: Record<string, string[]>
+    public errors?: Record<string, string[]>,
+    public errorCode?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -42,10 +44,26 @@ async function request<T = any>(
     const data: ApiResponse<T> = await response.json();
 
     if (!response.ok) {
+      // Check for session expiration
+      if (response.status === 401 && data.error_code === 'SESSION_EXPIRED') {
+        console.log("Session expired, redirecting to login");
+        // Clear token
+        localStorage.removeItem('auth_token');
+        // Redirect to login with reason
+        window.location.href = '/login?reason=session_expired';
+        throw new ApiError(
+          data.message || 'Session expired',
+          response.status,
+          data.errors,
+          data.error_code
+        );
+      }
+
       throw new ApiError(
         data.message || 'An error occurred',
         response.status,
-        data.errors
+        data.errors,
+        data.error_code
       );
     }
 
@@ -111,6 +129,7 @@ export const authApi = {
   login: async (data: {
     login: string;
     password: string;
+    login_source?: 'browser' | 'web' | 'mobile';
     device_token?: string;
     device_type?: string;
     device_id?: string;
@@ -126,6 +145,7 @@ export const authApi = {
     }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
+      requiresAuth: false,
     });
   },
 
