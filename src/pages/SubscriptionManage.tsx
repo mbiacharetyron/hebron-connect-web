@@ -27,7 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { subscriptionApi, subscriptionPlansApi, ApiError } from "@/lib/api";
+import { subscriptionApi, subscriptionPlansApi, connectRoomsApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { AddPaymentMethodDialog } from "@/components/AddPaymentMethodDialog";
 
@@ -95,6 +95,7 @@ const SubscriptionManage = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [roomName, setRoomName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [selectedAction, setSelectedAction] = useState<
@@ -191,16 +192,29 @@ const SubscriptionManage = () => {
     }
   }, [roomId]);
 
+  const fetchRoomName = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const roomsResponse = await connectRoomsApi.getMyRooms({ per_page: 50 });
+      const currentRoom = roomsResponse.rooms?.find((r) => r.id === Number(roomId));
+      if (currentRoom) {
+        setRoomName(currentRoom.name);
+      }
+    } catch (error) {
+      console.error("Error fetching room name:", error);
+    }
+  }, [roomId]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchSubscription(), fetchPaymentMethods(), fetchPlans()]);
+      await Promise.all([fetchSubscription(), fetchPaymentMethods(), fetchPlans(), fetchRoomName()]);
       setLoading(false);
       // Fetch invoices separately (not critical for initial load)
       fetchInvoices();
     };
     loadData();
-  }, [fetchSubscription, fetchPaymentMethods, fetchPlans, fetchInvoices]);
+  }, [fetchSubscription, fetchPaymentMethods, fetchPlans, fetchRoomName, fetchInvoices]);
 
   const handleSetDefaultCard = async (paymentMethodId: string) => {
     if (!roomId) return;
@@ -324,7 +338,12 @@ const SubscriptionManage = () => {
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
-              <h1 className="text-lg sm:text-xl font-bold">Manage Subscription</h1>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">Manage Subscription</h1>
+                {roomName && (
+                  <p className="text-sm text-white/80">{roomName}</p>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -380,7 +399,12 @@ const SubscriptionManage = () => {
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
-              <h1 className="text-lg sm:text-xl font-bold">Manage Subscription</h1>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">Manage Subscription</h1>
+                {roomName && (
+                  <p className="text-sm text-white/80">{roomName}</p>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"

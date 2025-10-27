@@ -47,6 +47,11 @@ async function request<T = any>(
       // Check for session expiration
       if (response.status === 401 && data.error_code === 'SESSION_EXPIRED') {
         console.log("Session expired, redirecting to login");
+        // Store current page to redirect back after login
+        const currentPath = window.location.pathname + window.location.search;
+        if (currentPath !== '/login' && currentPath !== '/register') {
+          localStorage.setItem('redirect_after_login', currentPath);
+        }
         // Clear token
         localStorage.removeItem('auth_token');
         // Redirect to login with reason

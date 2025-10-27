@@ -92,6 +92,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(null);
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('redirect_after_login');
       // Clear browser device ID to generate new one on next login
       clearBrowserDeviceId();
     }

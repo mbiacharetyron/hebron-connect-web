@@ -80,8 +80,17 @@ const Login = () => {
         className: "bg-green-500 text-white",
       });
 
-      // Navigate to dashboard
-      navigate("/dashboard");
+      // Check if there's a stored redirect path
+      const redirectPath = localStorage.getItem('redirect_after_login');
+      if (redirectPath) {
+        // Clear the stored path
+        localStorage.removeItem('redirect_after_login');
+        // Navigate to the stored path
+        navigate(redirectPath);
+      } else {
+        // Navigate to dashboard
+        navigate("/dashboard");
+      }
     } catch (error) {
       console.error("Login error:", error);
       if (error instanceof ApiError) {
