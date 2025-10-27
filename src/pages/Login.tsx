@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,13 @@ import logo from "@/assets/images/hConnect-logo3.png";
 import { authApi, ApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { getBrowserDeviceId, getBrowserInfo } from "@/utils/browserUtils";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
   const { toast } = useToast();
@@ -22,6 +24,18 @@ const Login = () => {
     emailOrPhone: "",
     password: "",
   });
+
+  // Show session expired message if redirected from expired session
+  useEffect(() => {
+    const reason = searchParams.get('reason');
+    if (reason === 'session_expired') {
+      toast({
+        variant: "destructive",
+        title: "Session Expired",
+        description: "Your session has expired. Please login again.",
+      });
+    }
+  }, [searchParams, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +52,24 @@ const Login = () => {
     setIsSubmitting(true);
 
     try {
+      // Get browser-specific device information
+      const deviceId = getBrowserDeviceId();
+      const browserInfo = getBrowserInfo();
+
+      console.log("Browser login with device ID:", deviceId);
+      console.log("Browser info:", browserInfo);
+
       const response = await authApi.login({
         login: credentials.emailOrPhone,
         password: credentials.password,
-        device_type: "web",
-        device_name: navigator.userAgent,
+        login_source: "browser", // Explicitly set as browser login
+        device_id: deviceId,
+        device_name: browserInfo.deviceName,
+        device_type: browserInfo.deviceType,
         lang: "en",
       });
+
+      console.log("Login successful, token received");
 
       // Login user
       login(response.token, response.user);
@@ -55,9 +80,19 @@ const Login = () => {
         className: "bg-green-500 text-white",
       });
 
-      // Navigate to dashboard
-      navigate("/dashboard");
+      // Check if there's a stored redirect path
+      const redirectPath = localStorage.getItem('redirect_after_login');
+      if (redirectPath) {
+        // Clear the stored path
+        localStorage.removeItem('redirect_after_login');
+        // Navigate to the stored path
+        navigate(redirectPath);
+      } else {
+        // Navigate to dashboard
+        navigate("/dashboard");
+      }
     } catch (error) {
+      console.error("Login error:", error);
       if (error instanceof ApiError) {
         toast({
           variant: "destructive",

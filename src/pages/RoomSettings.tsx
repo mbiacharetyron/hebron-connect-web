@@ -14,7 +14,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { connectRoomsApi, ApiError } from "@/lib/api";
+import { connectRoomsApi, subscriptionApi, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -45,9 +45,21 @@ interface Member {
   joined_at: string;
 }
 
+interface Subscription {
+  id: number;
+  plan_id: number;
+  plan_name: string;
+  billing_cycle: string;
+  status: string;
+  expires_at: string;
+  amount_paid: string;
+  days_remaining: number;
+}
+
 const RoomSettings = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const [room, setRoom] = useState<Room | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const navigate = useNavigate();
@@ -71,6 +83,23 @@ const RoomSettings = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubscription = async () => {
+    if (!roomId) return;
+    try {
+      const data = await subscriptionApi.getSubscription(Number(roomId));
+      setSubscription(data || null);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 404) {
+          // No subscription found - room is on free plan
+          setSubscription(null);
+        } else {
+          console.error("Error fetching subscription:", error);
+        }
+      }
     }
   };
 
@@ -101,6 +130,7 @@ const RoomSettings = () => {
   useEffect(() => {
     if (roomId) {
       fetchRoomDetails();
+      fetchSubscription();
       checkUserRole();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,6 +139,7 @@ const RoomSettings = () => {
   const handleRefresh = () => {
     setLoading(true);
     fetchRoomDetails();
+    fetchSubscription();
   };
 
   if (loading) {
@@ -223,14 +254,14 @@ const RoomSettings = () => {
                 </div>
                 <div>
                   <h4 className="text-2xl font-bold mb-1">
-                    {room.subscription_plan?.name || "Free Plan"}
+                    {subscription?.plan_name || "Free Plan"}
                   </h4>
                   <p className="text-blue-100 text-sm">
-                    {room.subscription_plan?.status === "active" ? "Active" : "Current Plan"}
+                    {subscription?.status === "active" ? "Active" : "Current Plan"}
                   </p>
                 </div>
               </div>
-              {room.subscription_plan?.status === "active" && (
+              {subscription?.status === "active" && (
                 <div className="bg-green-500 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" />
                   Active
@@ -238,11 +269,11 @@ const RoomSettings = () => {
               )}
             </div>
 
-            {room.subscription_plan?.expires_at && (
+            {subscription?.expires_at && (
               <div className="bg-white/10 rounded-xl p-4 mb-4">
                 <p className="text-sm text-blue-100 mb-1">Valid Until</p>
                 <p className="font-semibold">
-                  {new Date(room.subscription_plan.expires_at).toLocaleDateString('en-US', {
+                  {new Date(subscription.expires_at).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
